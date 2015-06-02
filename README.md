@@ -17,11 +17,15 @@ Requirements
 
 Install golang (All Operating systems)
 
-Launch it
----------
-```shell
-go run src/swift2fs/main.go
+Install
+-------
+
+```sh
+go get github.com/pierresouchay/swiftsync
 ```
+
+Getting Started
+---------
 
 Launchedl without any argument, it will create a default configuration file. If you loaded a openstack.rc
 file, it will generate the configuration using those values, example:
