@@ -12,6 +12,17 @@ files in less than 10 seconds.
 Usage and Configuration
 =======================
 
+Requirements
+------------
+
+Install golang (All Operating systems)
+
+Launch it
+---------
+```shell
+go run src/swift2fs/main.go
+```
+
 Launchedl without any argument, it will create a default configuration file. If you loaded a openstack.rc
 file, it will generate the configuration using those values, example:
 ```json
@@ -54,10 +65,14 @@ Comments about the options
 * strictMd5: if set to true, will always ensure local MD5 is the same as the file on server. Otherwise, use heursistics to guess when it MD5 must be computed
 
 
+When launched with the configuration path, it will sync.
+
 Other
 =====
 Source code is provided as it is, it has been tested only with Cloudwatt's Swift, but I'll be
 happy to help fixing code if it does not work with your favourite Cloud provider.
+
+Code has not been tested under Microsoft Windows, but I'll be happy to provide fixes if you find some bugs (path related bugs probably)
 
 This is my first golang project, written in 2 days without prior Golang knowledge. Feel free to fix wrong assumptions I made and send pull requests!
 
