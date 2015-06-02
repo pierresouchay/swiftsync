@@ -43,14 +43,15 @@ file, it will generate the configuration using those values, example:
 ```
 
 Comments about the options
-++++++++++++++++++++++++++
-# url: the identity URL (Keystone)
-# region: by default, it will use the first region given by keystone. Setting tis value let you choose a particular region
+--------------------------
 
-# containers: a list of regexps to apply to the containers names. If none match, container will not be synchronized
-# directory: the target directory where to put all the synchronized containers (relative to execution path or absolute)
-# ignore: a list of regexp patterns to apply to ignore some files from Cloud
-# strictMd5: if set to true, will always ensure local MD5 is the same as the file on server. Otherwise, use heursistics to guess when it MD5 must be computed
+* url: the identity URL (Keystone)
+* region: by default, it will use the first region given by keystone. Setting tis value let you choose a particular region
+
+* containers: a list of regexps to apply to the containers names. If none match, container will not be synchronized
+* directory: the target directory where to put all the synchronized containers (relative to execution path or absolute)
+* ignore: a list of regexp patterns to apply to ignore some files from Cloud
+* strictMd5: if set to true, will always ensure local MD5 is the same as the file on server. Otherwise, use heursistics to guess when it MD5 must be computed
 
 
 Other
