@@ -490,7 +490,7 @@ func main() {
 		Target: ConfigurationTarget{Containers: []string{".*"},
 			Directory:             "sync",
 			Ignore:                []string{},
-			StrictMd5:             true,
+			StrictMd5:             false,
 			OverwriteLocalChanges: false}}
 
 	{
