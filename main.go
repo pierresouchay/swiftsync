@@ -391,9 +391,8 @@ func authToKeystone(keystoneUrl string, keystoneCredentials KeystoneAuth, option
 		} else {
 			return nil, "", fmt.Errorf("objet-store has been found, but no endpoint seems configured: %s", *objectStoreEndPoints)
 		}
-	} else {
-		return nil, "", fmt.Errorf("Could not find Object store endpoint in %s", listing)
 	}
+	return nil, "", fmt.Errorf("Could not find Object store endpoint in %s", listing)
 }
 
 func downloadAndNotify(info *DownloadInfo) error {
@@ -466,7 +465,7 @@ func generateRandomStringForTempUrl() string {
 	return string(b)
 }
 
-const MAX_LISTINGS_AT_ONCE = 32
+const MAX_LISTINGS_AT_ONCE = 16
 
 const MAX_DOWNLOADS_AT_ONCE_PER_CONTAINER = 8
 
