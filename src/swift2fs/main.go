@@ -1,4 +1,5 @@
 package main
+
 // Swift Sync
 //
 // A simple and performant tool to synchronize Openstack Swift with your local
@@ -15,6 +16,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"math/rand"
 	"net/http"
 	"net/url"
 	"os"
@@ -373,10 +375,10 @@ func authToKeystone(keystoneUrl string, keystoneCredentials KeystoneAuth, option
 		if endP.Type == "object-store" {
 			for _, endPointInformation := range endP.EndPoints {
 				if optionalRegion == "" || (optionalRegion) == endPointInformation.Region {
-				    urlToParse:=endPointInformation.PublicURL
-				    if ! conf.Keystone.UsePublicURL {
-				    	urlToParse = endPointInformation.InternalURL
-				    }
+					urlToParse := endPointInformation.PublicURL
+					if !conf.Keystone.UsePublicURL {
+						urlToParse = endPointInformation.InternalURL
+					}
 					theUrl, err := url.Parse(urlToParse)
 					return theUrl, listing.Access.Token.Id, err
 				}
@@ -454,6 +456,16 @@ func drainDownload(processing *(chan *CurrentProcess), currentDownloads *(chan *
 	}
 }
 
+func generateRandomStringForTempUrl() string {
+	digits := []rune("abcdefghijklmnopqrstuvwxyz0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ")
+	rand.Seed(time.Now().UTC().UnixNano())
+	b := make([]rune, 64)
+	for i := range b {
+		b[i] = digits[rand.Intn(len(digits))]
+	}
+	return string(b)
+}
+
 const MAX_LISTINGS_AT_ONCE = 16
 
 const MAX_DOWNLOADS_AT_ONCE_PER_CONTAINER = 8
@@ -474,7 +486,7 @@ func main() {
 					TenantName: getEnvOrDefault("OS_TENANT_NAME", ""),
 				}},
 			UsePublicURL: true,
-			Region: getEnvOrDefault(os.Getenv("OS_REGION_NAME"), "")},
+			Region:       getEnvOrDefault(os.Getenv("OS_REGION_NAME"), "")},
 		Target: ConfigurationTarget{Containers: []string{".*"},
 			Directory:             "sync",
 			Ignore:                []string{},
@@ -585,8 +597,44 @@ func main() {
 		os.Exit(4)
 	}
 
-	key := []byte(resp.Header.Get("X-Account-Meta-Temp-Url-Key"))
+	var key []byte
+	{
+		tempUrlKey := resp.Header.Get("X-Account-Meta-Temp-Url-Key")
+		if tempUrlKey == "" || len(tempUrlKey) < 3 {
+			tempUrlKey = resp.Header.Get("X-Account-Meta-Temp-Url-Key-2")
+		}
 
+		if tempUrlKey == "" || len(tempUrlKey) < 3 {
+			// No temp URL key has been setup, let's try to create one
+			tempUrlKey = generateRandomStringForTempUrl()
+			req, err := http.NewRequest("POST", baseUrl.String(), nil)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "ERROR - Cannot initialize HTTP Client: %s\n", err.Error())
+				os.Exit(3)
+			}
+			fmt.Println("INFO: X-Account-Meta-Temp-Url-Key(-2) were not found, initializing a new one...")
+			req.Header.Set("X-Auth-Token", token)
+			req.Header.Set("Accept", "application/json")
+			req.Header.Set("X-Account-Meta-Temp-Url-Key", tempUrlKey)
+
+			client := &http.Client{}
+			resp, err := client.Do(req)
+
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "ERROR - Cannot list containers: %s\n", err.Error())
+				os.Exit(3)
+			}
+
+			if resp.StatusCode > 299 {
+				fmt.Fprintf(os.Stderr, "ERROR - Failed to connect to Swift to upload new X-Account-Meta-Temp-Url-Key, HTTP Code: %d, Message: %s", resp.StatusCode, resp.Status)
+				os.Exit(4)
+			}
+
+			resp.Body.Close()
+
+		}
+		key = []byte(tempUrlKey)
+	}
 	// read json http response
 	jsonDataFromHttp, err := ioutil.ReadAll(resp.Body)
 	resp.Body.Close()
