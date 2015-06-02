@@ -1,5 +1,6 @@
 A Very high performance rsync-like tool for Swift
 =================================================
+[![Build Status](https://img.shields.io/travis/pierresouchay/swiftsync.svg)](https://travis-ci.org/pierresouchay/swiftsync)
 
 Swift Sync is a tool to synchronize your Swift Repositories with your filesystem.
 
@@ -17,11 +18,15 @@ Requirements
 
 Install golang (All Operating systems)
 
-Launch it
----------
-```shell
-go run src/swift2fs/main.go
+Install
+-------
+
+```sh
+go get github.com/pierresouchay/swiftsync
 ```
+
+Getting Started
+---------
 
 Launchedl without any argument, it will create a default configuration file. If you loaded a openstack.rc
 file, it will generate the configuration using those values, example:
