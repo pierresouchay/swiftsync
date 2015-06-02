@@ -241,7 +241,7 @@ func shouldDownloadFile(containerName string, object ObjectInfo, compareWithFile
 		fmt.Printf("\n*** Cannot parse date %s of object : %s ***", object.Last_modified, object.Name, err)
 		panic(err)
 	}
-	modTime := fileInfo.ModTime()
+	modTime := fileInfo.ModTime().Add(time.Second)
 	localSize := fileInfo.Size()
 	if localSize != object.Bytes {
 		if localSize > 0 && !conf.Target.OverwriteLocalChanges && modTime.After(t) {
@@ -466,7 +466,7 @@ func generateRandomStringForTempUrl() string {
 	return string(b)
 }
 
-const MAX_LISTINGS_AT_ONCE = 16
+const MAX_LISTINGS_AT_ONCE = 32
 
 const MAX_DOWNLOADS_AT_ONCE_PER_CONTAINER = 8
 
