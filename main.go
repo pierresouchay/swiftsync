@@ -621,7 +621,7 @@ func main() {
 			resp, err := client.Do(req)
 
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "ERROR - Cannot list containers: %s\n", err.Error())
+				fmt.Fprintf(os.Stderr, "ERROR - Cannot upload new X-Account-Meta-Temp-Url-Key: %s\n", err.Error())
 				os.Exit(3)
 			}
 
