@@ -440,7 +440,7 @@ func drainDownload(processing *(chan *CurrentProcess), currentDownloads *(chan *
 	msg := <-(*currentDownloads)
 	(*numFiles)--
 	if msg.Download == Download {
-		(*processing) <- &CurrentProcess{File, fmt.Sprintf("Processing\t   %d\t   %d\t   %d\t   %d\t   %d\t%s (%s)           ", filesDownloaded, filesSkipped, filesSkippedErr, filesErrors, listing_len, c.Name, msg.File)}
+		(*processing) <- &CurrentProcess{File, fmt.Sprintf("Processing\t   %d\t   %d\t   %d\t   %d\t   %d\t%s (%s)           ", *filesDownloaded, *filesSkipped, *filesSkippedErr, *filesErrors, listing_len, c.Name, msg.File)}
 		err := downloadAndNotify(msg)
 		if err != nil {
 			fmt.Println("*** Error downloading "+msg.File, err)
