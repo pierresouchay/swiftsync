@@ -81,7 +81,7 @@ type KeystoneConfiguration struct {
 	Url          string       `json:"url"`
 	Post         KeystoneAuth `json:"post"`
 	Region       string       `json:"region"`
-	UsePublicURL string       `json:"usePublicURL"`
+	UsePublicURL bool         `json:"usePublicURL"`
 }
 
 // Configuration types
