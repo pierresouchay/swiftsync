@@ -1,5 +1,6 @@
 A Very high performance rsync-like tool for Swift
 =================================================
+[![Build Status](https://img.shields.io/travis/pierresouchay/swiftsync.svg)](https://travis-ci.org/pierresouchay/swiftsync)
 
 Swift Sync is a tool to synchronize your Swift Repositories with your filesystem.
 
