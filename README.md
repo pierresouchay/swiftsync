@@ -81,3 +81,15 @@ Code has not been tested under Microsoft Windows, but I'll be happy to provide f
 
 This is my first golang project, written in 2 days without prior Golang knowledge. Feel free to fix wrong assumptions I made and send pull requests!
 
+Static Binaries
+===============
+Binaries are provided for convenience.
+
+It is recommended to build it youselft using:
+```shell
+go build -o swift2fs main.go
+```
+
+* [Mac OS Build amd64](https://storage.fr1.cloudwatt.com/v1/AUTH_61b8fe6dfd0a4ce69f6622ea74444e0f/downloads/swift2fs-bin/swift2fs-linux-amd64?temp_url_sig=818fced6a0407d3426a41d39aeeeb62de931e43a&temp_url_expires=1465403760)
+* [Linux Build amd64](https://storage.fr1.cloudwatt.com/v1/AUTH_61b8fe6dfd0a4ce69f6622ea74444e0f/downloads/swift2fs-bin/swift2fs-mac-amd64?temp_url_sig=f5c559838d4ba47635e06037a3ec60d59cf5c60c&temp_url_expires=1465403760)
+
