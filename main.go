@@ -154,10 +154,11 @@ func listContainer(token string, urlStr string, containerName string, marker str
 	if !strings.HasSuffix(urlStr, "/") {
 		fullUrl += "/"
 	}
-	fullUrl += containerName
+	fullUrl += fmt.Sprintf("%s?limit=%d", containerName, MAX_OBJECTS_PER_LISTING)
 	if "" != "marker" {
-		fullUrl += "?marker=" + url.QueryEscape(marker)
+		fullUrl += "&marker=" + url.QueryEscape(marker)
 	}
+
 	req, err := http.NewRequest("GET", fullUrl, nil)
 	if err != nil {
 		panic(err)
@@ -474,6 +475,8 @@ func generateRandomStringForTempUrl() string {
 	return string(b)
 }
 
+const MAX_OBJECTS_PER_LISTING = 10000
+
 const MAX_LISTINGS_AT_ONCE = 16
 
 const MAX_DOWNLOADS_AT_ONCE_PER_CONTAINER = 16
@@ -672,7 +675,7 @@ func main() {
 		for _, container := range containers {
 			for _, regContainer := range ContainersRegexps {
 				if regContainer.MatchString(container.Name) {
-                    waitingTasks++
+					waitingTasks++
 
 					if container.Count == 0 {
 						go func(c ContainerInfo) {
@@ -680,93 +683,93 @@ func main() {
 							processing <- &CurrentProcess{Folder, fmt.Sprintf("%12s %12d %12d %12d %12d %12d %12d %12d %-64s", "OK", 0, 0, 0, 0, c.Count, c.Bytes, 0, c.Name)}
 						}(container)
 					} else {
-					go func(c ContainerInfo) {
-						status := "OK"
-						filesErrors := 0
-						filesDownloaded := 0
-						filesSkipped := 0
-						filesSkippedErr := 0
-						bytesDl := int64(0)
-						numFiles := 0
-						currentDownloads := make(chan *DownloadInfo)
-						listing, errListing := listContainer(token, baseUrl.String(), c.Name, "")
-						if errListing != nil {
-							status = "List failed"
-							hasErrors = true
-						} else {
-							hasMore := true
-							for hasMore {
+						go func(c ContainerInfo) {
+							status := "OK"
+							filesErrors := 0
+							filesDownloaded := 0
+							filesSkipped := 0
+							filesSkippedErr := 0
+							bytesDl := int64(0)
+							numFiles := 0
+							currentDownloads := make(chan *DownloadInfo)
+							listing, errListing := listContainer(token, baseUrl.String(), c.Name, "")
+							if errListing != nil {
+								status = "List failed"
+								hasErrors = true
+							} else {
+								hasMore := true
+								for hasMore {
 
-								for _, obj := range listing {
-									numFiles++
-									go func(obj ObjectInfo, c ContainerInfo) {
-										ignoreFile := false
-										for _, ignore := range IgnoreRegexps {
-											if ignore.MatchString(obj.Name) {
-												fmt.Println(obj.Name)
-												ignoreFile = true
-												break
+									for _, obj := range listing {
+										numFiles++
+										go func(obj ObjectInfo, c ContainerInfo) {
+											ignoreFile := false
+											for _, ignore := range IgnoreRegexps {
+												if ignore.MatchString(obj.Name) {
+													fmt.Println(obj.Name)
+													ignoreFile = true
+													break
+												}
 											}
-										}
-										download := Skip
-										fileName := conf.Target.Directory + c.Name + "/" + obj.Name
+											download := Skip
+											fileName := conf.Target.Directory + c.Name + "/" + obj.Name
 
-										if !ignoreFile {
-											download = shouldDownloadFile(c.Name, obj, fileName)
-										}
-										info := &DownloadInfo{download, obj, "", fileName}
-										switch download {
-										case Download:
-											absPath, query := createTempUrl(key, baseUrl.Path, c.Name, obj.Name)
-											toDl, err := url.Parse(baseUrl.String())
-											toDl.Path = absPath
-											toDl.RawQuery = query
-											info.Url = toDl.String()
-											if err != nil {
-												info.Download = SkipErr
+											if !ignoreFile {
+												download = shouldDownloadFile(c.Name, obj, fileName)
 											}
-										case Skip:
-											//currentDownloads <- fmt.Sprintf("Skip ", obj)
-										case SkipErr:
-											//currentDownloads <- fmt.Sprintf("SkipErr ", obj)
-										}
-										currentDownloads <- info
+											info := &DownloadInfo{download, obj, "", fileName}
+											switch download {
+											case Download:
+												absPath, query := createTempUrl(key, baseUrl.Path, c.Name, obj.Name)
+												toDl, err := url.Parse(baseUrl.String())
+												toDl.Path = absPath
+												toDl.RawQuery = query
+												info.Url = toDl.String()
+												if err != nil {
+													info.Download = SkipErr
+												}
+											case Skip:
+												//currentDownloads <- fmt.Sprintf("Skip ", obj)
+											case SkipErr:
+												//currentDownloads <- fmt.Sprintf("SkipErr ", obj)
+											}
+											currentDownloads <- info
 
-									}(obj, c)
-									// Max 8 downloads in //
-									for numFiles > MAX_DOWNLOADS_AT_ONCE_PER_CONTAINER {
+										}(obj, c)
+										// Max 8 downloads in //
+										for numFiles > MAX_DOWNLOADS_AT_ONCE_PER_CONTAINER {
+											drainDownload(&processing, &currentDownloads, &numFiles, &filesErrors, &filesDownloaded, &filesSkippedErr, &filesSkipped, &bytesDl, &c)
+										}
+									} //
+
+									for numFiles > 0 {
 										drainDownload(&processing, &currentDownloads, &numFiles, &filesErrors, &filesDownloaded, &filesSkippedErr, &filesSkipped, &bytesDl, &c)
 									}
-								} //
-
-								for numFiles > 0 {
-									drainDownload(&processing, &currentDownloads, &numFiles, &filesErrors, &filesDownloaded, &filesSkippedErr, &filesSkipped, &bytesDl, &c)
-								}
-								if len(listing) == 10000 {
-									listing, errListing = listContainer(token, baseUrl.String(), c.Name, listing[len(listing)-1].Name)
-									if errListing != nil {
-										status = "List failed"
-										hasMore = false
-										hasErrors = true
-										break
+									if len(listing) == MAX_OBJECTS_PER_LISTING {
+										listing, errListing = listContainer(token, baseUrl.String(), c.Name, listing[len(listing)-1].Name)
+										if errListing != nil {
+											status = "List failed"
+											hasMore = false
+											hasErrors = true
+											break
+										} else {
+											hasMore = true
+										}
 									} else {
-										hasMore = true
+										hasMore = false
 									}
-								} else {
-									hasMore = false
 								}
 							}
-						}
 
-						if filesErrors > 0 {
-							status = "Errors"
-							hasErrors = true
-						} else if filesSkippedErr > 0 {
-							status = "Local Diff"
-						}
-						processing <- &CurrentProcess{Folder, fmt.Sprintf("%12s %12d %12d %12d %12d %12d %12d %12d %-64s", status, filesDownloaded, filesSkipped, filesSkippedErr, filesErrors, c.Count, c.Bytes, bytesDl, c.Name)}
+							if filesErrors > 0 {
+								status = "Errors"
+								hasErrors = true
+							} else if filesSkippedErr > 0 {
+								status = "Local Diff"
+							}
+							processing <- &CurrentProcess{Folder, fmt.Sprintf("%12s %12d %12d %12d %12d %12d %12d %12d %-64s", status, filesDownloaded, filesSkipped, filesSkippedErr, filesErrors, c.Count, c.Bytes, bytesDl, c.Name)}
 
-					}(container)
+						}(container)
 					}
 					break
 				}
