@@ -149,12 +149,15 @@ type CurrentProcess struct {
 }
 
 // List a container and returns its listing
-func listContainer(token string, url string, containerName string) ([]ObjectInfo, error) {
-	fullUrl := url
-	if !strings.HasSuffix(url, "/") {
+func listContainer(token string, urlStr string, containerName string, marker string) ([]ObjectInfo, error) {
+	fullUrl := urlStr
+	if !strings.HasSuffix(urlStr, "/") {
 		fullUrl += "/"
 	}
 	fullUrl += containerName
+	if "" != "marker" {
+		fullUrl += "?marker=" + url.QueryEscape(marker)
+	}
 	req, err := http.NewRequest("GET", fullUrl, nil)
 	if err != nil {
 		panic(err)
@@ -305,14 +308,14 @@ func saveFile(object ObjectInfo, url string, saveAs string) error {
 	if errTime == nil {
 		os.Chtimes(saveAs, t, t)
 	} else {
-		os.Chtimes(saveAs, partialDownloadDate, partialDownloadDate)	
+		os.Chtimes(saveAs, partialDownloadDate, partialDownloadDate)
 	}
 	io.Copy(out, resp.Body)
 	resp.Body.Close()
 	out.Close()
 	if err != nil {
-		// We have an error downloading the file, we setup time to be my birthday, so it will be re-downloaded again :-) 
-    	os.Chtimes(saveAs, partialDownloadDate, partialDownloadDate)
+		// We have an error downloading the file, we setup time to be my birthday, so it will be re-downloaded again :-)
+		os.Chtimes(saveAs, partialDownloadDate, partialDownloadDate)
 		return err
 	}
 
@@ -436,22 +439,22 @@ var Usage = func() {
 
 var conf Configuration
 
-func drainDownload(processing *(chan *CurrentProcess), currentDownloads *(chan *DownloadInfo), numFiles *int, filesErrors *int, filesDownloaded *int, filesSkippedErr *int, filesSkipped *int, bytesDl *int64, c * ContainerInfo) {
+func drainDownload(processing *(chan *CurrentProcess), currentDownloads *(chan *DownloadInfo), numFiles *int, filesErrors *int, filesDownloaded *int, filesSkippedErr *int, filesSkipped *int, bytesDl *int64, c *ContainerInfo) {
 	msg := <-(*currentDownloads)
 	(*numFiles)--
 	if msg.Download == Download {
-	    fName:=msg.File
-	    strLen:=len(fName)
-	    if (strLen > 64){
-	        fName =	fName[0:30] + "\u2026" + fName[strLen-32:strLen]
-	    }
+		fName := msg.File
+		strLen := len(fName)
+		if strLen > 64 {
+			fName = fName[0:30] + "\u2026" + fName[strLen-32:strLen-1]
+		}
 		(*processing) <- &CurrentProcess{File, fmt.Sprintf("%12s %12d %12d %12d %12d %12d %12d %12d %-64s", "Downloading", *filesDownloaded, *filesSkipped, *filesSkippedErr, *filesErrors, (*c).Count, (*c).Bytes, *bytesDl, fName)}
 		err := downloadAndNotify(msg)
 		if err != nil {
 			fmt.Println("*** Error downloading "+msg.File, err)
 			(*filesErrors)++
 		} else {
-			(*bytesDl)+=msg.Object.Bytes
+			(*bytesDl) += msg.Object.Bytes
 			(*filesDownloaded)++
 		}
 	} else if msg.Download == SkipErr {
@@ -573,14 +576,15 @@ func main() {
 		}
 		IgnoreRegexps[idx] = *ignoreRegexp
 	}
-
 	baseUrl, token, err := authToKeystone(conf.Keystone.Url, conf.Keystone.Post, conf.Keystone.Region)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "ERROR - Could not get token: %s\n", err.Error())
 		os.Exit(2)
 	}
 
-	req, err := http.NewRequest("GET", baseUrl.String(), nil)
+	const MAX_CONTAINERS_PER_LISTING = 100
+
+	req, err := http.NewRequest("GET", fmt.Sprintf("%s?limit=%d", baseUrl.String(), MAX_CONTAINERS_PER_LISTING), nil)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "ERROR - Cannot initialize HTTP Client: %s\n", err.Error())
 		os.Exit(3)
@@ -662,86 +666,123 @@ func main() {
 	var waitingTasks = 0
 	fmt.Println(" Sync Status   Downloaded      in Sync      Skipped       Errors  Total Files        Bytes     DL Bytes Name")
 	hasErrors := false
-	for _, container := range containers {
-		for _, regContainer := range ContainersRegexps {
-			if regContainer.MatchString(container.Name) {
-				waitingTasks++
-				go func(c ContainerInfo) {
-					status := "OK"
-					filesErrors := 0
-					filesDownloaded := 0
-					filesSkipped := 0
-					filesSkippedErr := 0
-					bytesDl := int64(0)
-					listing, errListing := listContainer(token, baseUrl.String(), c.Name)
-					if errListing != nil {
-						status = "List failed"
-						hasErrors = true
+	hasMoreContainers := true
+
+	for hasMoreContainers {
+		for _, container := range containers {
+			for _, regContainer := range ContainersRegexps {
+				if regContainer.MatchString(container.Name) {
+                    waitingTasks++
+
+					if container.Count == 0 {
+						go func(c ContainerInfo) {
+							// Optimization for empty containers
+							processing <- &CurrentProcess{Folder, fmt.Sprintf("%12s %12d %12d %12d %12d %12d %12d %12d %-64s", "OK", 0, 0, 0, 0, c.Count, c.Bytes, 0, c.Name)}
+						}(container)
 					} else {
+					go func(c ContainerInfo) {
+						status := "OK"
+						filesErrors := 0
+						filesDownloaded := 0
+						filesSkipped := 0
+						filesSkippedErr := 0
+						bytesDl := int64(0)
 						numFiles := 0
 						currentDownloads := make(chan *DownloadInfo)
+						listing, errListing := listContainer(token, baseUrl.String(), c.Name, "")
+						if errListing != nil {
+							status = "List failed"
+							hasErrors = true
+						} else {
+							hasMore := true
+							for hasMore {
 
-						for _, obj := range listing {
-							numFiles++
-							go func(obj ObjectInfo, c ContainerInfo) {
-								ignoreFile := false
-								for _, ignore := range IgnoreRegexps {
-									if ignore.MatchString(obj.Name) {
-										fmt.Println(obj.Name)
-										ignoreFile = true
+								for _, obj := range listing {
+									numFiles++
+									go func(obj ObjectInfo, c ContainerInfo) {
+										ignoreFile := false
+										for _, ignore := range IgnoreRegexps {
+											if ignore.MatchString(obj.Name) {
+												fmt.Println(obj.Name)
+												ignoreFile = true
+												break
+											}
+										}
+										download := Skip
+										fileName := conf.Target.Directory + c.Name + "/" + obj.Name
+
+										if !ignoreFile {
+											download = shouldDownloadFile(c.Name, obj, fileName)
+										}
+										info := &DownloadInfo{download, obj, "", fileName}
+										switch download {
+										case Download:
+											absPath, query := createTempUrl(key, baseUrl.Path, c.Name, obj.Name)
+											toDl, err := url.Parse(baseUrl.String())
+											toDl.Path = absPath
+											toDl.RawQuery = query
+											info.Url = toDl.String()
+											if err != nil {
+												info.Download = SkipErr
+											}
+										case Skip:
+											//currentDownloads <- fmt.Sprintf("Skip ", obj)
+										case SkipErr:
+											//currentDownloads <- fmt.Sprintf("SkipErr ", obj)
+										}
+										currentDownloads <- info
+
+									}(obj, c)
+									// Max 8 downloads in //
+									for numFiles > MAX_DOWNLOADS_AT_ONCE_PER_CONTAINER {
+										drainDownload(&processing, &currentDownloads, &numFiles, &filesErrors, &filesDownloaded, &filesSkippedErr, &filesSkipped, &bytesDl, &c)
+									}
+								} //
+
+								for numFiles > 0 {
+									drainDownload(&processing, &currentDownloads, &numFiles, &filesErrors, &filesDownloaded, &filesSkippedErr, &filesSkipped, &bytesDl, &c)
+								}
+								if len(listing) == 10000 {
+									listing, errListing = listContainer(token, baseUrl.String(), c.Name, listing[len(listing)-1].Name)
+									if errListing != nil {
+										status = "List failed"
+										hasMore = false
+										hasErrors = true
 										break
+									} else {
+										hasMore = true
 									}
+								} else {
+									hasMore = false
 								}
-								download := Skip
-								fileName := conf.Target.Directory + c.Name + "/" + obj.Name
-
-								if !ignoreFile {
-									download = shouldDownloadFile(c.Name, obj, fileName)
-								}
-								info := &DownloadInfo{download, obj, "", fileName}
-								switch download {
-								case Download:
-									absPath, query := createTempUrl(key, baseUrl.Path, c.Name, obj.Name)
-									toDl, err := url.Parse(baseUrl.String())
-									toDl.Path = absPath
-									toDl.RawQuery = query
-									info.Url = toDl.String()
-									if err != nil {
-										info.Download = SkipErr
-									}
-								case Skip:
-									//currentDownloads <- fmt.Sprintf("Skip ", obj)
-								case SkipErr:
-									//currentDownloads <- fmt.Sprintf("SkipErr ", obj)
-								}
-								currentDownloads <- info
-
-							}(obj, c)
-							// Max 8 downloads in //
-							for numFiles > MAX_DOWNLOADS_AT_ONCE_PER_CONTAINER {
-								drainDownload(&processing, &currentDownloads, &numFiles, &filesErrors, &filesDownloaded, &filesSkippedErr, &filesSkipped, &bytesDl, &c)
 							}
 						}
 
-						for numFiles > 0 {
-							drainDownload(&processing, &currentDownloads, &numFiles, &filesErrors, &filesDownloaded, &filesSkippedErr, &filesSkipped, &bytesDl, &c)
+						if filesErrors > 0 {
+							status = "Errors"
+							hasErrors = true
+						} else if filesSkippedErr > 0 {
+							status = "Local Diff"
 						}
-					}
+						processing <- &CurrentProcess{Folder, fmt.Sprintf("%12s %12d %12d %12d %12d %12d %12d %12d %-64s", status, filesDownloaded, filesSkipped, filesSkippedErr, filesErrors, c.Count, c.Bytes, bytesDl, c.Name)}
 
-					if filesErrors > 0 {
-						status = "Errors"
-						hasErrors = true
-					} else if filesSkippedErr > 0 {
-						status = "Local Diff"
+					}(container)
 					}
-					processing <- &CurrentProcess{Folder, fmt.Sprintf("%12s %12d %12d %12d %12d %12d %12d %12d %-64s", status, filesDownloaded, filesSkipped, filesSkippedErr, filesErrors, c.Count, c.Bytes, bytesDl, c.Name)}
-
-				}(container)
-				break
+					break
+				}
+			}
+			// MAX
+			for waitingTasks > MAX_LISTINGS_AT_ONCE {
+				msg := <-processing
+				if msg.Type == Folder {
+					waitingTasks--
+					fmt.Printf("\r%s\n", msg.message)
+				} else {
+					fmt.Printf("\r%s", msg.message)
+				}
 			}
 		}
-		// MAX
-		for waitingTasks > MAX_LISTINGS_AT_ONCE {
+		for waitingTasks > 0 {
 			msg := <-processing
 			if msg.Type == Folder {
 				waitingTasks--
@@ -750,15 +791,51 @@ func main() {
 				fmt.Printf("\r%s", msg.message)
 			}
 		}
-	}
-	for waitingTasks > 0 {
-		msg := <-processing
-		if msg.Type == Folder {
-			waitingTasks--
-			fmt.Printf("\r%s\n", msg.message)
+		if len(containers) == MAX_CONTAINERS_PER_LISTING {
+			// We have to continue the listing
+			containerMarker := containers[len(containers)-1].Name
+			req, err = http.NewRequest("GET", fmt.Sprintf("%s?limit=%d&marker=%s", baseUrl.String(), MAX_CONTAINERS_PER_LISTING, url.QueryEscape(containerMarker)), nil)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "ERROR - Cannot initialize HTTP Client: %s\n", err.Error())
+				os.Exit(3)
+			}
+
+			req.Header.Set("X-Auth-Token", token)
+			req.Header.Set("Accept", "application/json")
+
+			client := &http.Client{}
+			resp, err := client.Do(req)
+
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "ERROR - Cannot list containers: %s\n", err.Error())
+				os.Exit(3)
+			}
+
+			if resp.StatusCode != 200 {
+				fmt.Fprintf(os.Stderr, "ERROR - Failed to connect to Swift, HTTP Code: %d, Message: %s", resp.StatusCode, resp.Status)
+				os.Exit(4)
+			}
+			// read json http response
+			jsonDataFromHttp, err := ioutil.ReadAll(resp.Body)
+			resp.Body.Close()
+
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "ERROR - Could not read listing from Swift: %s", err.Error())
+				os.Exit(5)
+			}
+
+			err = json.Unmarshal(jsonDataFromHttp, &containers)
+
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "ERROR - Could not parse JSON listing from Swift: %s", err.Error())
+				os.Exit(6)
+			}
+			hasMoreContainers = true
+
 		} else {
-			fmt.Printf("\r%s", msg.message)
+			hasMoreContainers = false
 		}
+
 	}
 	if hasErrors {
 		os.Exit(16)
