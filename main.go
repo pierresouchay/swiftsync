@@ -154,12 +154,18 @@ func listContainer(token string, urlStr string, containerName string, marker str
 	if !strings.HasSuffix(urlStr, "/") {
 		fullUrl += "/"
 	}
-	fullUrl += fmt.Sprintf("%s?limit=%d", containerName, MAX_OBJECTS_PER_LISTING)
+    daUrl, err := url.Parse(fullUrl)
+    if err != nil {
+    	return nil, err
+    }
+    
+	daUrl.Path+= containerName
+	daUrl.RawQuery=fmt.Sprintf("limit=%d", MAX_OBJECTS_PER_LISTING)
 	if "" != "marker" {
-		fullUrl += "&marker=" + url.QueryEscape(marker)
+		daUrl.RawQuery += "&marker=" + url.QueryEscape(marker)
 	}
 
-	req, err := http.NewRequest("GET", fullUrl, nil)
+	req, err := http.NewRequest("GET", daUrl.String(), nil)
 	if err != nil {
 		panic(err)
 	}
