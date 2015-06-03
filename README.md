@@ -93,3 +93,58 @@ go build -o swift2fs main.go
 * [Linux Build AMD64](https://storage.fr1.cloudwatt.com/v1/AUTH_61b8fe6dfd0a4ce69f6622ea74444e0f/downloads/swift2fs-bin/swift2fs-linux-amd64?temp_url_sig=818fced6a0407d3426a41d39aeeeb62de931e43a&temp_url_expires=1465403760)
 * [MacOS Build amd64](https://storage.fr1.cloudwatt.com/v1/AUTH_61b8fe6dfd0a4ce69f6622ea74444e0f/downloads/swift2fs-bin/swift2fs-mac-amd64?temp_url_sig=f5c559838d4ba47635e06037a3ec60d59cf5c60c&temp_url_expires=1465403760)
 
+Performance Sample and Output
+=============================
+
+26Gb of data in more than 31k files in 41 containers, less than 2 seconds to synchronize the full filesystem in a tiny Ubuntu VM @Cloudwatt!
+
+```
+$ time ./swift2fs-linux-amd64 conf.json
+ Sync Status   Downloaded      in Sync      Skipped       Errors  Total Files        Bytes     DL Bytes Name
+          OK            0            0            0            0            0            0            0 CLOUDWATTBOX
+          OK            0           32            0            0           32    132227121            0 conteneur with spaces
+          OK            0           24            0            0           24   6797461095            0 globi
+          OK            0           29            0            0           29    118019074            0 coin
+          OK            0            2            0            0            2      4534294            0 download
+          OK            0            0            0            0            0            0            0 hého$
+          OK            0           28            0            0           28     25813532            0 12
+          OK            0          133            0            0          133   6921452094            0 downloads
+          OK            0            4            0            0            4     12482574            0 hop
+          OK            0            1            0            0            1      2555363            0 canard2
+          OK            0            2            0            0            2      3716526            0 ContainerwithVersions
+          OK            0            2            0            0            2     24008235            0 fbureau
+          OK            0            1            0            0            1         9726            0 heat-stacks
+          OK            0           73            0            0           73    485136008            0 bapteme_joseph
+          OK            0            4            0            0            4       682791            0 iaas
+          OK            0            1            0            0            1         8006            0 UnicodeTest_日本語_™ لوحة المفاتيح العرب
+          OK            0           25            0            0           25     95868574            0 media
+          OK            0            9            0            0            9      1853696            0 helloWorld
+          OK            0            2            0            0            2      1032430            0 partage-jean-brice
+          OK            0           46            0            0           46    335740019            0 photos_backup
+          OK            0            0            0            0            0            0            0 testDossiers
+          OK            0            3            0            0            3      1419335            0 mySharedContainerWithUserGuest
+          OK            0           10            0            0           10      1815279            0 plop
+          OK            0            5            0            0            5      1354538            0 pubWeb
+          OK            0          512            0            0          512    114746394            0 backups
+          OK            0          514            0            0          514   1456288247            0 books
+          OK            0           11            0            0           11     54021585            0 web
+          OK            0            9            0            0            9   2705271389            0 videos
+          OK            0          129            0            0          129    182687948            0 share
+          OK            0          372            0            0          372    367981164            0 hého € !
+          OK            0           10            0            0           10    119231012            0 work
+          OK            0          451            0            0          451    769844547            0 photos
+          OK            0          877            0            0          877    441268171            0 origami2
+          OK            0         1281            0            0         1281    150708382            0 NewContainer
+          OK            0         1564            0            0         1564    130652667            0 NouveauConteneur
+          OK            0         2158            0            0         2158    160441828            0 11
+          OK            0         2035            0            0         2035   1447298530            0 origami
+          OK            0         2095            0            0         2095   2711636515            0 monStockage
+          OK            0         2382            0            0         2382    821573274            0 pop
+          OK            0         5013            0            0         5013     27313711            0 versions
+          OK            0        12000            0            0        12000        60894            0 many
+
+real	0m1.103s
+user	0m0.629s
+sys	0m0.126s
+```
+
