@@ -245,7 +245,7 @@ func shouldDownloadFile(containerName string, object ObjectInfo, compareWithFile
 	localSize := fileInfo.Size()
 	if localSize != object.Bytes {
 		if localSize > 0 && !conf.Target.OverwriteLocalChanges && modTime.After(t) {
-			fmt.Printf("\n*** File %s is more recent %s than the file from server (%s), ignoring ***\n", compareWithFile, fileInfo.ModTime(), t)
+			fmt.Fprintf(os.Stderr, "\r*** File %s is more recent %s than the file from server (%s), ignoring ***\n", compareWithFile, fileInfo.ModTime(), t)
 			return SkipErr
 		}
 		return Download
@@ -254,14 +254,13 @@ func shouldDownloadFile(containerName string, object ObjectInfo, compareWithFile
 		// We check the md5
 		md5sum, err := ComputeMd5(compareWithFile)
 		if err != nil {
-			fmt.Printf("\n*** Hash computation error for %s %s\n", compareWithFile, err.Error())
+			fmt.Fprintf(os.Stderr, "\r*** Hash computation error for %s %s\n", compareWithFile, err.Error())
 			// We cannot compute MD5, file deleted ? Download !
 			return Download
 		}
 		if object.Hash == hex.EncodeToString(md5sum) {
 			return Skip
 		} else {
-			fmt.Printf("\n*** Hash differs for %s\n", compareWithFile)
 			return Download
 		}
 	}
@@ -281,6 +280,8 @@ func checkClose(c io.Closer, err *error) {
 	}
 }
 
+var partialDownloadDate = time.Date(1979, time.November, 6, 18, 30, 0, 0, time.FixedZone("UTC", 0))
+
 func saveFile(object ObjectInfo, url string, saveAs string) error {
 	resp, err := http.Get(url)
 	if err != nil {
@@ -297,22 +298,21 @@ func saveFile(object ObjectInfo, url string, saveAs string) error {
 		if out != nil {
 			out.Close()
 		}
-		//panic(err)
 		return err
 	}
 	// We setup its date to 1970, since we want to recover the file if download does not finish properly
 	t, errTime := object.GetLastModified()
 	if errTime == nil {
 		os.Chtimes(saveAs, t, t)
+	} else {
+		os.Chtimes(saveAs, partialDownloadDate, partialDownloadDate)	
 	}
 	io.Copy(out, resp.Body)
 	resp.Body.Close()
 	out.Close()
 	if err != nil {
-		//panic(err)
-		if errTime == nil {
-			os.Chtimes(saveAs, t, t)
-		}
+		// We have an error downloading the file, we setup time to be my birthday, so it will be re-downloaded again :-) 
+    	os.Chtimes(saveAs, partialDownloadDate, partialDownloadDate)
 		return err
 	}
 
@@ -436,16 +436,22 @@ var Usage = func() {
 
 var conf Configuration
 
-func drainDownload(processing *(chan *CurrentProcess), currentDownloads *(chan *DownloadInfo), numFiles *int, filesErrors *int, filesDownloaded *int, filesSkippedErr *int, filesSkipped *int, listing_len int, c ContainerInfo) {
+func drainDownload(processing *(chan *CurrentProcess), currentDownloads *(chan *DownloadInfo), numFiles *int, filesErrors *int, filesDownloaded *int, filesSkippedErr *int, filesSkipped *int, bytesDl *int64, c * ContainerInfo) {
 	msg := <-(*currentDownloads)
 	(*numFiles)--
 	if msg.Download == Download {
-		(*processing) <- &CurrentProcess{File, fmt.Sprintf("Processing\t   %d\t   %d\t   %d\t   %d\t   %d\t%s (%s)           ", *filesDownloaded, *filesSkipped, *filesSkippedErr, *filesErrors, listing_len, c.Name, msg.File)}
+	    fName:=msg.File
+	    strLen:=len(fName)
+	    if (strLen > 64){
+	        fName =	fName[0:30] + "\u2026" + fName[strLen-32:strLen]
+	    }
+		(*processing) <- &CurrentProcess{File, fmt.Sprintf("%12s %12d %12d %12d %12d %12d %12d %12d %-64s", "Downloading", *filesDownloaded, *filesSkipped, *filesSkippedErr, *filesErrors, (*c).Count, (*c).Bytes, *bytesDl, fName)}
 		err := downloadAndNotify(msg)
 		if err != nil {
 			fmt.Println("*** Error downloading "+msg.File, err)
 			(*filesErrors)++
 		} else {
+			(*bytesDl)+=msg.Object.Bytes
 			(*filesDownloaded)++
 		}
 	} else if msg.Download == SkipErr {
@@ -467,7 +473,7 @@ func generateRandomStringForTempUrl() string {
 
 const MAX_LISTINGS_AT_ONCE = 16
 
-const MAX_DOWNLOADS_AT_ONCE_PER_CONTAINER = 8
+const MAX_DOWNLOADS_AT_ONCE_PER_CONTAINER = 16
 
 func main() {
 	token := ""
@@ -654,7 +660,7 @@ func main() {
 
 	processing := make(chan *CurrentProcess)
 	var waitingTasks = 0
-	fmt.Println(" Sync Status   Downloaded      in Sync      Skipped       Errors  Total Files Name")
+	fmt.Println(" Sync Status   Downloaded      in Sync      Skipped       Errors  Total Files        Bytes     DL Bytes Name")
 	hasErrors := false
 	for _, container := range containers {
 		for _, regContainer := range ContainersRegexps {
@@ -666,13 +672,12 @@ func main() {
 					filesDownloaded := 0
 					filesSkipped := 0
 					filesSkippedErr := 0
-					listing_len := -1
+					bytesDl := int64(0)
 					listing, errListing := listContainer(token, baseUrl.String(), c.Name)
 					if errListing != nil {
 						status = "List failed"
 						hasErrors = true
 					} else {
-						listing_len = len(listing)
 						numFiles := 0
 						currentDownloads := make(chan *DownloadInfo)
 
@@ -714,12 +719,12 @@ func main() {
 							}(obj, c)
 							// Max 8 downloads in //
 							for numFiles > MAX_DOWNLOADS_AT_ONCE_PER_CONTAINER {
-								drainDownload(&processing, &currentDownloads, &numFiles, &filesErrors, &filesDownloaded, &filesSkippedErr, &filesSkipped, listing_len, c)
+								drainDownload(&processing, &currentDownloads, &numFiles, &filesErrors, &filesDownloaded, &filesSkippedErr, &filesSkipped, &bytesDl, &c)
 							}
 						}
 
 						for numFiles > 0 {
-							drainDownload(&processing, &currentDownloads, &numFiles, &filesErrors, &filesDownloaded, &filesSkippedErr, &filesSkipped, listing_len, c)
+							drainDownload(&processing, &currentDownloads, &numFiles, &filesErrors, &filesDownloaded, &filesSkippedErr, &filesSkipped, &bytesDl, &c)
 						}
 					}
 
@@ -729,7 +734,7 @@ func main() {
 					} else if filesSkippedErr > 0 {
 						status = "Local Diff"
 					}
-					processing <- &CurrentProcess{Folder, fmt.Sprintf("%12s %12d %12d %12d %12d %12d %-64s", status, filesDownloaded, filesSkipped, filesSkippedErr, filesErrors, listing_len, c.Name)}
+					processing <- &CurrentProcess{Folder, fmt.Sprintf("%12s %12d %12d %12d %12d %12d %12d %12d %-64s", status, filesDownloaded, filesSkipped, filesSkippedErr, filesErrors, c.Count, c.Bytes, bytesDl, c.Name)}
 
 				}(container)
 				break
