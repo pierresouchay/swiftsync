@@ -565,7 +565,7 @@ func drainDownload(processing *(chan *CurrentProcess), currentDownloads *(chan *
 		fName := msg.File
 		strLen := len(fName)
 		if strLen > 64 {
-			fName = fName[0:30] + "\u2026" + fName[strLen-32:strLen-1]
+			fName = fName[0:30] + "\u2026" + fName[strLen-32:strLen]
 		}
 		(*processing) <- &CurrentProcess{File, fmt.Sprintf("%12s %12d %12d %12d %12d %12d %12d %12d %-64s", "Downloading", *filesDownloaded, *filesSkipped, *filesSkippedErr, *filesErrors, (*c).Count, (*c).Bytes, *bytesDl, fName)}
 		var err error = nil
