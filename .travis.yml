@@ -1,6 +1,20 @@
 language: go
-
 go:
-  - 1.3
-  - 1.4
-  - tip
+- 1.3
+- 1.4
+- tip
+before_deploy:
+- go get github.com/mitchellh/gox
+- gox -build-toolchain
+- gox -output="bin/swift2fs.{{.OS}}-{{.Arch}}"
+deploy:
+  provider: releases
+  api_key:
+    secure: hXgxwpyGPVh+wdtR2Pk8X/WdTl9R2F1L8JI4YZSKAJzrLYf+ti8EsdweqoU3BR7P9Q+8rB+s8P6gdAbB3cBi2euu8ne8oLtzntmcxgZZNkvuL335o0sjHwAYSshToK0ExElFPxqmypxLvKs95q/Ub5L6WjeNu9+IjNO3NdLsoY9SX5KMjXiQVzvMjtPUNh0D7MLM/FLg68B8irZqUk5WfxZraNBKDjnWEtkeIzW/RPxz5xJxVpCvp+DgYwSOqh8/qS1O04ITN4/JczXl80n0lYYmurkoAw99N/GLoODzfzWz01vqEwHF8twGjkijWYGZ84FTFasnWbarA210Nz+/F5IDsbEQ05jM+2/b/V/ndoeeamNjNfEOxwnZM0bLVXWHkYsfwl+9H1nsrKauOATNyo2ukYgJjHjsAXQxsEJP1dKntt8uoKu511LXrCMN1IGIPpid3/dDaeUlS0a/gkh5Ndkf1WOku/eYi/DeDSgCVt7dMnrWngwty2fK9uRXAoHyDCFVYJ9yQ1Ax1VjG2nA+ii7w1IxQcsPVVKaGaDjcijdF29tFe2MEc6QRNJJCYHlk18boTs6dms/LP6LlN20lxZRb1vTt83Z6tk9Y2nu1sQXk7cbcKyW2CSjQFY8sLDXvwiGlKW1MLanJB5BH0/jsuKG6Z3fpI6p8ktIXUd5CwzA=
+  file: bin/*
+  file-glob: true
+  skip_cleanup: true
+  on:
+    go: '1.4'
+    tags: true
+    repo: pierresouchay/swiftsync
