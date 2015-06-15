@@ -83,15 +83,12 @@ This is my first golang project, written in 2 days without prior Golang knowledg
 
 Static Binaries
 ===============
-Binaries are provided for convenience.
+Binaries are provided here: [https://github.com/pierresouchay/swiftsync/releases](https://github.com/pierresouchay/swiftsync/releases) each time a tag is created.
 
-It is recommended to build it youselft using:
+You can build your own binaries by yourself by issuing the command:
 ```shell
 go build -o swift2fs main.go
 ```
-
-* [Linux Build AMD64](https://storage.fr1.cloudwatt.com/v1/AUTH_61b8fe6dfd0a4ce69f6622ea74444e0f/downloads/swift2fs-bin/swift2fs-linux-amd64?temp_url_sig=818fced6a0407d3426a41d39aeeeb62de931e43a&temp_url_expires=1465403760)
-* [MacOS Build amd64](https://storage.fr1.cloudwatt.com/v1/AUTH_61b8fe6dfd0a4ce69f6622ea74444e0f/downloads/swift2fs-bin/swift2fs-mac-amd64?temp_url_sig=f5c559838d4ba47635e06037a3ec60d59cf5c60c&temp_url_expires=1465403760)
 
 Performance Sample and Output
 =============================
