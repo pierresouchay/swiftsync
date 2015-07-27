@@ -69,10 +69,10 @@ type TokenType struct {
 }
 
 type AuthType struct {
-	PasswordCredentials PasswdCredsType `json:"passwordCredentials,omitempty"`
-	//Token               *TokenType      `json:"token,omitempty"`
-	TenantId   string `json:"tenantId,omitempty"`
-	TenantName string `json:"tenantName,omitempty"`
+	PasswordCredentials *PasswdCredsType `json:"passwordCredentials,omitempty"`
+	Token               *TokenType       `json:"token,omitempty"`
+	TenantId            string           `json:"tenantId,omitempty"`
+	TenantName          string           `json:"tenantName,omitempty"`
 }
 
 type KeystoneAuth struct {
@@ -125,8 +125,8 @@ type ObjectInfo struct {
 
 func (this *ObjectInfo) GetLastModifiedAsSec() (time.Time, error) {
 	const dateFormat = "2006-01-02T15:04:05.999999999"
-	t, err := time.Parse(dateFormat, this.Last_modified);
-	if err!=nil {
+	t, err := time.Parse(dateFormat, this.Last_modified)
+	if err != nil {
 		return t, err
 	}
 	return t.Truncate(time.Second), err
@@ -152,21 +152,19 @@ type CurrentProcess struct {
 	message string
 }
 
-
-
 // List a container and returns its listing
 func listContainer(token string, urlStr string, containerName string, marker string) ([]ObjectInfo, error) {
 	fullUrl := urlStr
 	if !strings.HasSuffix(urlStr, "/") {
 		fullUrl += "/"
 	}
-    daUrl, err := url.Parse(fullUrl)
-    if err != nil {
-    	return nil, err
-    }
-    
-	daUrl.Path+= containerName
-	daUrl.RawQuery=fmt.Sprintf("limit=%d", MAX_OBJECTS_PER_LISTING)
+	daUrl, err := url.Parse(fullUrl)
+	if err != nil {
+		return nil, err
+	}
+
+	daUrl.Path += containerName
+	daUrl.RawQuery = fmt.Sprintf("limit=%d", MAX_OBJECTS_PER_LISTING)
 	if "" != "marker" {
 		daUrl.RawQuery += "&marker=" + url.QueryEscape(marker)
 	}
@@ -240,31 +238,31 @@ func ComputeMd5(filePath string) ([]byte, error) {
 	return hash.Sum(result), nil
 }
 
-const CACHE_DIRECTORY = ".swiftsync/.cache/";
+const CACHE_DIRECTORY = ".swiftsync/.cache/"
 
 var conf Configuration
 
 func writeCacheEntry(containerName string, object ObjectInfo, remoteMd5 string) error {
-	cacheFileName:= conf.Target.Directory + CACHE_DIRECTORY +containerName + "/" + object.Name
+	cacheFileName := conf.Target.Directory + CACHE_DIRECTORY + containerName + "/" + object.Name
 	directory := filepath.Dir(cacheFileName)
 	os.MkdirAll(directory, 0777)
-	
-	err:= ioutil.WriteFile( cacheFileName, []byte(remoteMd5), 0666)
-	if err!=nil {
+
+	err := ioutil.WriteFile(cacheFileName, []byte(remoteMd5), 0666)
+	if err != nil {
 		return err
 	}
-	t, err:= object.GetLastModifiedAsSec()
-	if err != nil{
-		return err	
+	t, err := object.GetLastModifiedAsSec()
+	if err != nil {
+		return err
 	}
 	os.Chtimes(cacheFileName, t, t)
-	return err	
+	return err
 }
 
 func readMd5CacheEntry(containerName string, object ObjectInfo, localLastModified time.Time) string {
-    cacheFileName:= conf.Target.Directory + CACHE_DIRECTORY +containerName + "/" + object.Name
+	cacheFileName := conf.Target.Directory + CACHE_DIRECTORY + containerName + "/" + object.Name
 	fileInfo, err := os.Stat(cacheFileName)
-	
+
 	if err != nil {
 		//fmt.Printf("\n*** Cannot load cache file : %s ***\n", cacheFileName)
 		return ""
@@ -278,8 +276,8 @@ func readMd5CacheEntry(containerName string, object ObjectInfo, localLastModifie
 		//fmt.Printf("\n*** ERR1: %d VS %d \n", localLastModified.Unix(), t.Unix())
 		return ""
 	}
-	modTime := fileInfo.ModTime();
-	if (modTime.Unix() != localLastModified.Unix()){
+	modTime := fileInfo.ModTime()
+	if modTime.Unix() != localLastModified.Unix() {
 		//fmt.Printf("\n*** ERR1: %d VS %d \n", modTime.Unix(), localLastModified.Unix())
 		return ""
 	}
@@ -289,12 +287,12 @@ func readMd5CacheEntry(containerName string, object ObjectInfo, localLastModifie
 		return ""
 	}
 	data, err := ioutil.ReadAll(file)
-	if err!=nil {
+	if err != nil {
 		file.Close()
 		return ""
 	}
 	file.Close()
-    md5Data:= string(data);
+	md5Data := string(data)
 	//fmt.Println("\n*** Read MD5: "+md5Data)
 	return md5Data
 }
@@ -316,21 +314,21 @@ func shouldDownloadFile(containerName string, object ObjectInfo, compareWithFile
 		fmt.Printf("\n*** Cannot parse date %s of object : %s ***", object.Last_modified, object.Name, err)
 		panic(err)
 	}
-	modTime := fileInfo.ModTime();
+	modTime := fileInfo.ModTime()
 	localSize := fileInfo.Size()
-	
+
 	if localSize != object.Bytes {
 		if localSize > 0 && !conf.Target.OverwriteLocalChanges && modTime.After(t) {
 			fmt.Fprintf(os.Stderr, "\r*** File %s is more recent %s than the file from server (%s), ignoring ***\n", compareWithFile, fileInfo.ModTime(), t)
 			return SkipErr, ""
 		}
 		if object.Bytes != 0 {
-			return Download, ""	
+			return Download, ""
 		} else {
 			return Download, readMd5CacheEntry(containerName, object, modTime)
 		}
 	}
-	localMd5:= ""
+	localMd5 := ""
 	if conf.Target.StrictMd5 || modTime.Before(t) || object.Bytes == 0 {
 		// We check the md5
 		md5sum, err := ComputeMd5(compareWithFile)
@@ -339,16 +337,16 @@ func shouldDownloadFile(containerName string, object ObjectInfo, compareWithFile
 			// We cannot compute MD5, file deleted ? Download !
 			return Download, ""
 		}
-	    localMd5 = hex.EncodeToString(md5sum)
-		if object.Hash == localMd5{
+		localMd5 = hex.EncodeToString(md5sum)
+		if object.Hash == localMd5 {
 			return Skip, localMd5
 		} else {
 			return Download, localMd5
 		}
 	}
 	// Since Swift API sucks, we have to retry download
-	if object.Bytes == 0{
-		return Download, localMd5	
+	if object.Bytes == 0 {
+		return Download, localMd5
 	}
 	return Skip, localMd5
 }
@@ -364,26 +362,26 @@ func checkClose(c io.Closer, err *error) {
 
 var partialDownloadDate = time.Date(1979, time.November, 6, 18, 30, 0, 0, time.FixedZone("UTC", 0))
 
-func saveFile(containerName string, object ObjectInfo, url string, saveAs string, localMd5 string) (DownloadStrategy, error) {	
+func saveFile(containerName string, object ObjectInfo, url string, saveAs string, localMd5 string) (DownloadStrategy, error) {
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "ERROR - Cannot initialize HTTP Client for downloading file: %s\n", err.Error())
 		return SkipErr, err
 	}
-    localETag := ""
-	
+	localETag := ""
+
 	if localMd5 != "" {
-		if strings.HasPrefix(localMd5, "\""){
+		if strings.HasPrefix(localMd5, "\"") {
 			localETag = localMd5
 		} else {
-			localETag = fmt.Sprintf("\"%s\"", localMd5);
+			localETag = fmt.Sprintf("\"%s\"", localMd5)
 		}
 		req.Header.Set("If-None-Match", localETag)
 	}
 
 	client := &http.Client{}
 	resp, err := client.Do(req)
-	
+
 	if err != nil {
 		if resp != nil {
 			resp.Body.Close()
@@ -391,7 +389,7 @@ func saveFile(containerName string, object ObjectInfo, url string, saveAs string
 		return SkipErr, err
 	}
 
-	if resp.StatusCode == 304 || (localETag!="" && localETag == resp.Header.Get("ETag")) {
+	if resp.StatusCode == 304 || (localETag != "" && localETag == resp.Header.Get("ETag")) {
 		// Not modified, we don't download again
 		//fmt.Println("\nSKIPPED If-None-Match: "+localMd5+", not downloaded for "+url);
 		resp.Body.Close()
@@ -401,7 +399,7 @@ func saveFile(containerName string, object ObjectInfo, url string, saveAs string
 		//fmt.Println("\nERROR: "+localMd5+", not downloaded for "+url);
 		return Skip, fmt.Errorf("Cannot download file %s, HTTP %d: %s", url, resp.StatusCode, resp.Status)
 	}
-	
+
 	directory := filepath.Dir(saveAs)
 	os.MkdirAll(directory, 0777)
 	out, err := os.Create(saveAs)
@@ -431,17 +429,17 @@ func saveFile(containerName string, object ObjectInfo, url string, saveAs string
 	if errTime == nil {
 		os.Chtimes(saveAs, t, t)
 	}
-    manifest:= resp.Header.Get("X-Object-Manifest")
-    if "" != manifest {
-    	//fmt.Printf("\n*** Detected Large Object %s *** md5:=%s VS %s -- %s\n", url, localETag, resp.Header.Get("ETag"), localMd5)
-        errCache:= writeCacheEntry(containerName, object, resp.Header.Get("ETag"))
-        if errCache != nil {
-        	fmt.Fprintf(os.Stderr, "\n*** Failed to write Cache entry for %s/%s: %s ***\n", containerName, object.Name, errCache.Error())
-        } else {
-        	//fmt.Printf("\n*** Cache entry written for %s/%s ***\n", containerName, object.Name)
-        }
-    }
-    	
+	manifest := resp.Header.Get("X-Object-Manifest")
+	if "" != manifest {
+		//fmt.Printf("\n*** Detected Large Object %s *** md5:=%s VS %s -- %s\n", url, localETag, resp.Header.Get("ETag"), localMd5)
+		errCache := writeCacheEntry(containerName, object, resp.Header.Get("ETag"))
+		if errCache != nil {
+			fmt.Fprintf(os.Stderr, "\n*** Failed to write Cache entry for %s/%s: %s ***\n", containerName, object.Name, errCache.Error())
+		} else {
+			//fmt.Printf("\n*** Cache entry written for %s/%s ***\n", containerName, object.Name)
+		}
+	}
+
 	return Download, nil
 }
 
@@ -556,11 +554,10 @@ var Usage = func() {
 	os.Exit(127)
 }
 
-
 func drainDownload(processing *(chan *CurrentProcess), currentDownloads *(chan *DownloadInfo), numFiles *int, filesErrors *int, filesDownloaded *int, filesSkippedErr *int, filesSkipped *int, bytesDl *int64, c *ContainerInfo) {
 	msg := <-(*currentDownloads)
 	(*numFiles)--
-    dlRet := msg.Download
+	dlRet := msg.Download
 	if msg.Download == Download {
 		fName := msg.File
 		strLen := len(fName)
@@ -569,7 +566,7 @@ func drainDownload(processing *(chan *CurrentProcess), currentDownloads *(chan *
 		}
 		(*processing) <- &CurrentProcess{File, fmt.Sprintf("%12s %12d %12d %12d %12d %12d %12d %12d %-64s", "Downloading", *filesDownloaded, *filesSkipped, *filesSkippedErr, *filesErrors, (*c).Count, (*c).Bytes, *bytesDl, fName)}
 		var err error = nil
- 		dlRet, err = downloadAndNotify((*c).Name, msg)
+		dlRet, err = downloadAndNotify((*c).Name, msg)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "\n*** Error downloading %s: %s ***\n", msg.File, err.Error())
 			(*filesErrors)++
@@ -604,17 +601,18 @@ const MAX_DOWNLOADS_AT_ONCE_PER_CONTAINER = 16
 func main() {
 	token := ""
 
+	tenantId := getEnvOrDefault("OS_TENANT_ID", "")
+	tenantName := getEnvOrDefault("OS_TENANT_NAME", "")
+	if tenantId != "" {
+		tenantName = ""
+	}
 	conf = Configuration{
-
 		Keystone: KeystoneConfiguration{
 			Url: "https://identity.fr1.cloudwatt.com/v2.0/tokens",
 			Post: KeystoneAuth{
 				Auth: AuthType{
-					PasswordCredentials: PasswdCredsType{
-						Username: getEnvOrDefault("OS_USERNAME", "me@example.com"),
-						Password: getEnvOrDefault("OS_PASSWORD", "password is missing")},
-					TenantId:   getEnvOrDefault("OS_TENANT_ID", ""),
-					TenantName: getEnvOrDefault("OS_TENANT_NAME", ""),
+					TenantId:   tenantId,
+					TenantName: tenantName,
 				}},
 			UsePublicURL: true,
 			Region:       getEnvOrDefault(os.Getenv("OS_REGION_NAME"), "")},
@@ -646,6 +644,9 @@ func main() {
 				}
 			}
 		} else {
+			conf.Keystone.Post.Auth.PasswordCredentials = &PasswdCredsType{
+				getEnvOrDefault("OS_USERNAME", "me@example.com"),
+				getEnvOrDefault("OS_PASSWORD", "password is missing")}
 			fmt.Fprintf(os.Stderr, "Generating an example configuration using environment\nValues are read from your environment, so it may be time to load your openstack.rc file\nSave the following content into a file, a start again the program with the file as argument.\n--------\n")
 			if conf.Keystone.Post.Auth.TenantId == "" && conf.Keystone.Post.Auth.TenantName == "" {
 				conf.Keystone.Post.Auth.TenantName = "tenantName, or you can use tenantId property instead"
@@ -701,6 +702,10 @@ func main() {
 	}
 	baseUrl, token, err := authToKeystone(conf.Keystone.Url, conf.Keystone.Post, conf.Keystone.Region)
 	if err != nil {
+		jData, err2 := json.MarshalIndent(conf.Keystone.Post, "", "    ")
+		if err2 == nil {
+			fmt.Fprintf(os.Stderr, "Creds: %s\n", jData)
+		}
 		fmt.Fprintf(os.Stderr, "ERROR - Could not get token: %s\n", err.Error())
 		os.Exit(2)
 	}
@@ -833,7 +838,7 @@ func main() {
 											}
 											download := Skip
 											fileName := conf.Target.Directory + c.Name + "/" + obj.Name
-											localMd5:=""
+											localMd5 := ""
 											if !ignoreFile {
 												download, localMd5 = shouldDownloadFile(c.Name, obj, fileName)
 											}
