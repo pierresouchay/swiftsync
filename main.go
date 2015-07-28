@@ -26,6 +26,8 @@ import (
 	"time"
 )
 
+const VERSION = "0.4"
+
 // Keystone Serializarion Types
 
 type ResultToken struct {
@@ -173,7 +175,7 @@ func listContainer(token string, urlStr string, containerName string, marker str
 	if err != nil {
 		panic(err)
 	}
-
+    req.Header.Set("User-Agent", USER_AGENT)
 	req.Header.Set("X-Auth-Token", token)
 	req.Header.Set("Accept", "application/json")
 
@@ -237,6 +239,8 @@ func ComputeMd5(filePath string) ([]byte, error) {
 
 	return hash.Sum(result), nil
 }
+
+const USER_AGENT = "swiftsync-golang/"+VERSION
 
 const CACHE_DIRECTORY = ".swiftsync/.cache/"
 
@@ -368,6 +372,7 @@ func saveFile(containerName string, object ObjectInfo, url string, saveAs string
 		fmt.Fprintf(os.Stderr, "ERROR - Cannot initialize HTTP Client for downloading file: %s\n", err.Error())
 		return SkipErr, err
 	}
+	req.Header.Set("User-Agent", USER_AGENT)
 	localETag := ""
 
 	if localMd5 != "" {
@@ -452,6 +457,7 @@ func authToKeystone(keystoneUrl string, keystoneCredentials KeystoneAuth, option
 	if err != nil {
 		panic(err)
 	}
+	req.Header.Set("User-Agent", USER_AGENT)
 
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json")
@@ -717,6 +723,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "ERROR - Cannot initialize HTTP Client: %s\n", err.Error())
 		os.Exit(3)
 	}
+	req.Header.Set("User-Agent", USER_AGENT)
 
 	req.Header.Set("X-Auth-Token", token)
 	req.Header.Set("Accept", "application/json")
@@ -749,6 +756,7 @@ func main() {
 				fmt.Fprintf(os.Stderr, "ERROR - Cannot initialize HTTP Client: %s\n", err.Error())
 				os.Exit(3)
 			}
+			req.Header.Set("User-Agent", USER_AGENT)
 			fmt.Println("INFO: X-Account-Meta-Temp-Url-Key(-2) were not found, initializing a new one...")
 			req.Header.Set("X-Auth-Token", token)
 			req.Header.Set("Accept", "application/json")
@@ -927,6 +935,7 @@ func main() {
 				fmt.Fprintf(os.Stderr, "ERROR - Cannot initialize HTTP Client: %s\n", err.Error())
 				os.Exit(3)
 			}
+			req.Header.Set("User-Agent", USER_AGENT)
 
 			req.Header.Set("X-Auth-Token", token)
 			req.Header.Set("Accept", "application/json")
